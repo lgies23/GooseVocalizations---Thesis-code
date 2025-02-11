@@ -664,3 +664,41 @@ def plot_cluster_examples(column_name, unique_labels, calls_df, examples_per_clu
     # Adjust layout and show the plot
     plt.tight_layout()
     plt.show()
+
+def clusterability_plot(clusterability_results):
+    fig, axs = plt.subplots(ncols=2, figsize=(20, 8))
+
+    columns = ["Silhouette Score", "Modularity"]
+    for i, column in enumerate(columns):
+        # Raw data points
+        sns.stripplot(
+            x="Representation", 
+            y=column, 
+            data=clusterability_results, 
+            ax=axs[i], 
+            jitter=True, 
+            size=10, 
+            hue="Algorithm", 
+            legend=(True if i == len(columns)-1 else False)
+        )
+        # Mean points
+        sns.pointplot(
+            x="Representation", 
+            y=column, 
+            data=clusterability_results, 
+            ax=axs[i], 
+            errorbar=None,
+            markers="o", 
+            color="grey",
+            alpha=0.3
+        )
+
+        axs[i].set_xticks(range(len(['PAFs', 'LFCCs', 'Spectrograms', 'VAE representations'])))
+        axs[i].set_xticklabels(['PAFs', 'LFCCs', 'Spectrograms', 'VAE representations'], rotation=45, ha='right')
+        axs[i].set_title(column)
+        axs[i].set_xlabel('')
+        axs[i].set_ylabel('')
+
+    plt.tight_layout()
+    plt.show()
+
