@@ -68,7 +68,6 @@ def hopkins(X, random_seed):
 
 
 def v_measure_against_chance(y_true, y_pred, n_permutations=1000, plot=True):
-    n_permutations = 1000
 
     # true V-measure
     res_bootstrap_v = bootstrap((y_true, y_pred), v_measure_score, n_resamples=n_permutations, paired=True)
