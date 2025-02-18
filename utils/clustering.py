@@ -15,6 +15,9 @@ from sklearn.metrics import silhouette_score
 
 from utils import plotting
 
+from sklearn.utils import resample
+
+
 
 RANDOM_SEED = 42
 np.random.seed(RANDOM_SEED)
@@ -53,12 +56,12 @@ def silhouette_analysis_kmeans(data, embeddings=None, range_n_clusters=[2, 3, 4,
         cluster_labels = clusterer.fit_predict(data)
         silhouette_avg = silhouette_score(data, cluster_labels)
 
-        print(
-            "For n_clusters =",
-            n_clusters,
-            "The silhouette_score is:",
-            silhouette_avg,
-        )
+        # print(
+        #     "For n_clusters =",
+        #     n_clusters,
+        #     "The silhouette_score is:",
+        #     silhouette_avg,
+        # )
 
         if silhouette_avg > max_score:
             max_score, n, labels, centers = silhouette_avg, n_clusters, cluster_labels, clusterer.cluster_centers_
@@ -117,10 +120,10 @@ def silhouette_analysis_hdbscan(data, embeddings=None, min_sample_numbers=[1, 2,
         if n_clusters > 1:
             sil_score = silhouette_score(data, cluster_labels)
 
-            print(
-                f'For min_cluster_size={min_size}, min_samples={min_samples}, n_clusters={n_clusters}: \
-                average silhouette_score={sil_score}'
-            )
+            # print(
+            #     f'For min_cluster_size={min_size}, min_samples={min_samples}, n_clusters={n_clusters}: \
+            #     average silhouette_score={sil_score}'
+            # )
 
             # no centers because clusters may not be convex
             if sil_score > max_score:
@@ -188,14 +191,14 @@ def modularity_analysis_leiden(graph, calls_df, labels_column, embeddings=None, 
         modularity_score = partition.modularity
         n_clusters = np.max(labels)+1
 
-        print(
-            "For resolution =",
-            res_param,
-            "The average modularity is:",
-            modularity_score,
-            "N clusters:",
-            n_clusters
-        )
+        # print(
+        #     "For resolution =",
+        #     res_param,
+        #     "The average modularity is:",
+        #     modularity_score,
+        #     "N clusters:",
+        #     n_clusters
+        # )
 
         if modularity_score > max_score:
             max_score, n, labels_best, res_param_max, best_partition = modularity_score, n_clusters, labels, res_param, partition
@@ -210,3 +213,51 @@ def modularity_analysis_leiden(graph, calls_df, labels_column, embeddings=None, 
     calls_df[labels_column] = np.asarray(labels_best)
     print(f'best score with {n} clusters and resolution parameter {res_param_max}: {max_score}')
     return max_score, n, labels_best, best_partition
+
+
+def bootstrap_classes_of_size(df, class_size=95, random_seed=42):
+    return df.groupby('call_type', group_keys=False).apply(
+        lambda x: resample(x, replace=True, n_samples=class_size, random_state=random_seed)
+    )
+
+def cluster_dataset(dataset, algorithm, *args, **kwargs):
+    if algorithm == 'leiden':
+        labels, partition = leiden_cluster_from_nn_graph(dataset, *args, **kwargs)
+         
+    else:
+        if algorithm == 'hdbscan':
+            clusterer = hdbscan.HDBSCAN(
+                # min_cluster_size=min_size, 
+                # min_samples=min_samples, 
+                cluster_selection_epsilon=1, 
+                prediction_data=True,
+                *args, 
+                **kwargs
+                )
+        
+        elif algorithm == 'kmeans':
+            clusterer = KMeans(random_state=RANDOM_SEED, *args, **kwargs) # n_clusters=n_clusters, 
+        
+        labels = clusterer.fit_predict(dataset)
+
+    return labels
+    
+
+def bootstrap_clustering(df, algorithm, n_bootstraps=500, class_size=95, *args, **kwargs):
+    bootstrap_metrics = {}
+    rng = np.random.RandomState(RANDOM_SEED)  # Random state generator
+    for i in range(n_bootstraps):
+
+        # bootstrap
+        dataset = bootstrap_classes_of_size(class_size=class_size, random_seed=rng.randint(0, 10**6)) # Generate a new seed for each iteration
+        
+        # cluster
+        cluster_labels = cluster_dataset(dataset, algorithm, *args, **kwargs)
+
+        # extract metrics
+
+        bootstrap_metrics.append()
+
+    # Compute Confidence Intervals (e.g., 95% CI)
+    lower_ci, upper_ci = np.percentile(bootstrap_metrics, [2.5, 97.5])
+    
