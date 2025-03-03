@@ -8,7 +8,7 @@ from sklearn.metrics.cluster import v_measure_score, completeness_score, homogen
 from scipy.stats import bootstrap
 from scipy.stats import kruskal
 from sklearn.metrics import silhouette_samples, adjusted_rand_score
-
+import networkx as nx
 
 def silhouette_against_chance(y_pred, embeddings):
     # https://github.com/timsainb/avgn_paper/blob/63e25ca535a230f96b7fb1017728ead6ee0bf36b/notebooks/02.5-make-projection-dfs/indv-id/marmoset-make-umap-get-silhouette-vs-chance.ipynb#L4
@@ -24,6 +24,12 @@ def silhouette_across_embeddings(y_pred_a, y_pred_b, embeddings):
     b_coefficients = silhouette_samples(embeddings, labels=y_pred_b)
     krusk_res = kruskal(a_coefficients, b_coefficients)
     return krusk_res
+
+
+def silhouette_on_graph(graph, memberships):
+    labels = np.array(memberships)
+    dist_matrix = np.array(graph.shortest_paths_dijkstra())
+    return np.mean(silhouette_samples(dist_matrix, labels, metric="precomputed"))
 
 
 def hopkins(X, random_seed):

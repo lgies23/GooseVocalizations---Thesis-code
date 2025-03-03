@@ -1,15 +1,11 @@
 import numpy as np
 import random
-from tqdm.auto import tqdm
 import itertools
 
-import umap
-from umap.umap_ import nearest_neighbors
 import hdbscan
 import leidenalg as la
 import igraph as ig
 
-from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 
@@ -73,7 +69,7 @@ def silhouette_analysis_kmeans(data, embeddings=None, range_n_clusters=[2, 3, 4,
         plotting._plot_silhouette_analysis(data, n, labels, max_score, embeddings, centers)
         plotting.plot_embeddings_with_colorcoded_label(data, embeddings, labels, "kMeans", "Cluster")
 
-    print(f'best score with {n} clusters: {max_score}')
+    #print(f'Best score with {n} clusters: {max_score}')
     return max_score, n, labels
 
 
@@ -111,7 +107,6 @@ def silhouette_analysis_hdbscan(data, embeddings=None, min_sample_numbers=[1, 2,
         clusterer = hdbscan.HDBSCAN(
             min_cluster_size=min_size, 
             min_samples=min_samples, 
-            cluster_selection_epsilon=1, 
             prediction_data=True
             )
         cluster_labels = clusterer.fit_predict(data)
@@ -136,8 +131,8 @@ def silhouette_analysis_hdbscan(data, embeddings=None, min_sample_numbers=[1, 2,
                 plotting._plot_silhouette_analysis(data, n_clusters, cluster_labels, sil_score, embeddings)
 
 
-    print(f'\nBest parameter combination: min_cluster_size={best_params[0]}, min_samples={best_params[1]} \
-          with {best_n} clusters and silhouette score: {max_score}')
+    # print(f'\nBest parameter combination: min_cluster_size={best_params[0]}, min_samples={best_params[1]} \
+    #       with {best_n} clusters and silhouette score: {max_score}')
 
     if plot_best_clustering and plot_any:
         plotting._plot_silhouette_analysis(data, best_n, best_labels, max_score, embeddings)
@@ -148,16 +143,16 @@ def silhouette_analysis_hdbscan(data, embeddings=None, min_sample_numbers=[1, 2,
     return max_score, best_n, best_labels
 
 
-def leiden_cluster_from_nn_graph(graph, resolution_parameter=1, seed=RANDOM_SEED):
+def leiden_cluster_from_nn_graph(graph, partition_type=la.ModularityVertexPartition, resolution_parameter=1, seed=RANDOM_SEED):
     # TODO documentation
-    # The code in the function leiden_cluster_from_nn_graph is adapted from Tim Sainburgs workshop code TODO how do I reference this correctly?
+    # Adapted from Tim Sainburg's workshop code (personal communication).
     knn_indices, knn_dists, _ = graph
 
     # Extract edges and weights
     edges = []
     weights = []
 
-    for i in tqdm(range(knn_indices.shape[0])):
+    for i in range(knn_indices.shape[0]):
         for j in range(1, knn_indices.shape[1]):
             edges.append((i, knn_indices[i, j]))
             weights.append(knn_dists[i, j])
@@ -167,7 +162,10 @@ def leiden_cluster_from_nn_graph(graph, resolution_parameter=1, seed=RANDOM_SEED
     g.es['weight'] = weights
 
     # Perform Leiden clustering
-    partition = la.find_partition(g, la.RBConfigurationVertexPartition, weights=g.es['weight'], seed=seed, resolution_parameter=resolution_parameter)
+    try:
+        partition = la.find_partition(g, partition_type, weights=g.es['weight'], seed=seed, resolution_parameter=resolution_parameter)
+    except:
+        partition = la.find_partition(g, partition_type, weights=g.es['weight'], seed=seed)
     #partition = la.CPMVertexPartition(g, weights=g.es['weight'], resolution_parameter=resolution_parameter)
     #partition = la.RBConfigurationVertexPartition(g, weights=g.es['weight'], resolution_parameter=resolution_parameter) # optimizes Modularity-"inspired" function, includes resolution parameter, compares against random graph
     optimiser = la.Optimiser()
@@ -176,18 +174,18 @@ def leiden_cluster_from_nn_graph(graph, resolution_parameter=1, seed=RANDOM_SEED
     # Extract cluster labels
     labels = np.array(partition.membership)
 
-    return labels, partition
+    return labels, partition, g
 
 def modularity_analysis_leiden(graph, calls_df, labels_column, embeddings=None, resolution_parameters=None, plot_every_step=False, plot_best_clustering=True, seed=RANDOM_SEED):
     """
     TODO
     """
     if resolution_parameters == None:
-        resolution_parameters = np.linspace(0.1, 2, 20)
+        resolution_parameters = np.linspace(0, 1, 20) # gamma below 1 to find more global group structure
     max_score, n, res_param_max = -1, 0, 0
     
     for res_param in resolution_parameters:
-        labels, partition = leiden_cluster_from_nn_graph(graph, res_param, seed=seed)
+        labels, partition, _ = leiden_cluster_from_nn_graph(graph, res_param, seed=seed)
         modularity_score = partition.modularity
         n_clusters = np.max(labels)+1
 
@@ -211,53 +209,52 @@ def modularity_analysis_leiden(graph, calls_df, labels_column, embeddings=None, 
         plotting.plot_embeddings_with_colorcoded_label(calls_df, embeddings, labels_best, "Leiden", "Cluster")
 
     calls_df[labels_column] = np.asarray(labels_best)
-    print(f'best score with {n} clusters and resolution parameter {res_param_max}: {max_score}')
+    #print(f'Best score with {n} clusters and resolution parameter {res_param_max}: {max_score}')
     return max_score, n, labels_best, best_partition
+
+def preset_leiden(graph, calls_df, labels_column, class_number, embeddings=None, resolution_parameters=None, plot_every_step=False, plot_best_clustering=True, seed=RANDOM_SEED):
+    """
+    TODO
+    """
+    if resolution_parameters == None:
+        resolution_parameters = np.linspace(0, 1, 40) # gamma below 1 to find more global group structure
+    max_score, n, min_distance = -1, 0, 30
+    best_match = None
+
+    for res_param in resolution_parameters:
+        labels, partition, _ = leiden_cluster_from_nn_graph(graph, res_param, seed=seed)
+        modularity_score = partition.modularity
+        n_clusters = np.max(labels)+1
+            
+        if plot_every_step:
+            plotting.plot_clusters_on_embeddings(labels, embeddings, title=None)
+        
+        if n_clusters == class_number:
+            best_match = (modularity_score, n_clusters, labels, min_distance, partition)
+            break
+        
+        distance = np.abs(n_clusters-class_number)
+        if distance < min_distance:
+            min_distance = distance
+            best_match = (modularity_score, n_clusters, labels, min_distance, partition)
+         
+    if best_match:
+        max_score, n, labels_best, res_param_max, best_partition = best_match
+
+        if plot_best_clustering:
+            plotting.plot_clusters_on_embeddings(labels_best, embeddings, title=None)
+            plotting.plot_embeddings_with_colorcoded_label(calls_df, embeddings, labels_best, "Leiden", "Cluster")
+
+        calls_df[labels_column] = np.asarray(labels_best)
+        #print(f'Best score with {n} clusters and resolution parameter {res_param_max}: {max_score}')
+        return max_score, n, labels_best, best_partition
+    
+    else:
+        print("No valid clustering found. Check resolution parameters or input data.")
+        return None, None, None, None
 
 
 def bootstrap_classes_of_size(df, class_size=95, random_seed=42):
     return df.groupby('call_type', group_keys=False).apply(
         lambda x: resample(x, replace=True, n_samples=class_size, random_state=random_seed)
     )
-
-def cluster_dataset(dataset, algorithm, *args, **kwargs):
-    if algorithm == 'leiden':
-        labels, partition = leiden_cluster_from_nn_graph(dataset, *args, **kwargs)
-         
-    else:
-        if algorithm == 'hdbscan':
-            clusterer = hdbscan.HDBSCAN(
-                # min_cluster_size=min_size, 
-                # min_samples=min_samples, 
-                cluster_selection_epsilon=1, 
-                prediction_data=True,
-                *args, 
-                **kwargs
-                )
-        
-        elif algorithm == 'kmeans':
-            clusterer = KMeans(random_state=RANDOM_SEED, *args, **kwargs) # n_clusters=n_clusters, 
-        
-        labels = clusterer.fit_predict(dataset)
-
-    return labels
-    
-
-def bootstrap_clustering(df, algorithm, n_bootstraps=500, class_size=95, *args, **kwargs):
-    bootstrap_metrics = {}
-    rng = np.random.RandomState(RANDOM_SEED)  # Random state generator
-    for i in range(n_bootstraps):
-
-        # bootstrap
-        dataset = bootstrap_classes_of_size(class_size=class_size, random_seed=rng.randint(0, 10**6)) # Generate a new seed for each iteration
-        
-        # cluster
-        cluster_labels = cluster_dataset(dataset, algorithm, *args, **kwargs)
-
-        # extract metrics
-
-        bootstrap_metrics.append()
-
-    # Compute Confidence Intervals (e.g., 95% CI)
-    lower_ci, upper_ci = np.percentile(bootstrap_metrics, [2.5, 97.5])
-    
