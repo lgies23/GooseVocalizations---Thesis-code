@@ -143,7 +143,7 @@ def silhouette_analysis_hdbscan(data, embeddings=None, min_sample_numbers=[1, 2,
     return max_score, best_n, best_labels
 
 
-def leiden_cluster_from_nn_graph(graph, partition_type=la.ModularityVertexPartition, resolution_parameter=1, seed=RANDOM_SEED):
+def leiden_cluster_from_nn_graph(graph, partition_type=la.ModularityVertexPartition, resolution_parameter=1, seed=RANDOM_SEED, plot=False, calls_df=None, embeddings=None):
     # TODO documentation
     # Adapted from Tim Sainburg's workshop code (personal communication).
     knn_indices, knn_dists, _ = graph
@@ -173,6 +173,10 @@ def leiden_cluster_from_nn_graph(graph, partition_type=la.ModularityVertexPartit
     diff = optimiser.optimise_partition(partition, n_iterations=10)
     # Extract cluster labels
     labels = np.array(partition.membership)
+    
+    if plot:
+        plotting.plot_clusters_on_embeddings(labels, embeddings, title=None)
+        plotting.plot_embeddings_with_colorcoded_label(calls_df, embeddings, labels, "Leiden", "Cluster")
 
     return labels, partition, g
 

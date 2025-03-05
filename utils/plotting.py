@@ -362,9 +362,13 @@ def plot_embeddings_with_colorcoded_label(df, embeddings, label_column, plot_tit
         unique_labels = df[label_column].unique()
         color_palette = sns.color_palette("muted", len(unique_labels))
         label_to_color = {label: color for label, color in zip(unique_labels, color_palette)}
-        legend_patches = [Patch(color=color, label=label) for label, color in label_to_color.items()]
-        # Assign colors to points
-        colors = [label_to_color[label] for label in df[label_column]]
+        if "call" in label_column:
+            legend_patches = [Patch(color=color, label=label) for label, color in CALL_TYPE_COLORS.items()]
+            colors = [CALL_TYPE_COLORS[label] for label in df[label_column]]
+        else:
+            legend_patches = [Patch(color=color, label=label) for label, color in label_to_color.items()]
+            # Assign colors to points
+            colors = [label_to_color[label] for label in df[label_column]]
 
     # Scatter plot
     plt.scatter(
@@ -405,7 +409,7 @@ def plot_embedding_per_call_type(embeddings, df):
     """
     unique_call_types = df["call_type"].unique()
     color_palette = sns.color_palette("muted", len(unique_call_types))
-    call_type_to_color = {call_type: color for call_type, color in zip(unique_call_types, color_palette)}
+    #call_type_to_color = {call_type: color for call_type, color in zip(unique_call_types, color_palette)}
 
     cols = 3
     rows = 2
@@ -431,7 +435,7 @@ def plot_embedding_per_call_type(embeddings, df):
         # Filter embeddings for current call type
         mask = df["call_type"] == call_type
         filtered_embeddings = embeddings[mask]
-        color = call_type_to_color[call_type]
+        color = CALL_TYPE_COLORS[call_type]
         
         ax.scatter(
             filtered_embeddings[:, 0],
