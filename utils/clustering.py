@@ -20,7 +20,7 @@ np.random.seed(RANDOM_SEED)
 random.seed(RANDOM_SEED)
 
 
-def silhouette_analysis_kmeans(data, embeddings=None, range_n_clusters=[2, 3, 4, 5, 6, 7, 8, 9, 10, 11], plot_every_step=False, plot_best_clustering=True):
+def silhouette_analysis_kmeans(data, embeddings=None, range_n_clusters=np.arange(2, 45), plot_every_step=False, plot_best_clustering=True):
     """
     adapted from https://scikit-learn.org/1.5/auto_examples/cluster/plot_kmeans_silhouette_analysis.html#sphx-glr-auto-examples-cluster-plot-kmeans-silhouette-analysis-py
 
@@ -59,7 +59,7 @@ def silhouette_analysis_kmeans(data, embeddings=None, range_n_clusters=[2, 3, 4,
         #     silhouette_avg,
         # )
 
-        if silhouette_avg > max_score:
+        if silhouette_avg >= max_score:
             max_score, n, labels, centers = silhouette_avg, n_clusters, cluster_labels, clusterer.cluster_centers_
         
         if plot_every_step and plot_any:
