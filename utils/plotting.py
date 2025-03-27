@@ -13,7 +13,9 @@ from sklearn.metrics import silhouette_samples
 
 from .helpers import _min_max_scale
 
+
 # For plotting
+sns.set_theme(style="ticks", font_scale=1.6)
 CALL_TYPE_COLORS = {'alarm': (0.2823529411764706, 0.47058823529411764, 0.8156862745098039), 
                     'contact': (0.9333333333333333, 0.5215686274509804, 0.2901960784313726), 
                     'departure': (0.41568627450980394, 0.8, 0.39215686274509803), 
@@ -486,7 +488,7 @@ def plot_colorcoded_features(feature_columns, feature_titles, embeddings_list, e
 
             # Only add the embedding title at the top of each column
             if i == 0:
-                ax.set_title(embedding_title, fontsize=12)
+                ax.set_title(embedding_title, fontsize=20)
 
             # Add a colorbar only for the rightmost column
             if j == num_embeddings - 1:
@@ -500,7 +502,7 @@ def plot_colorcoded_features(feature_columns, feature_titles, embeddings_list, e
                     ), 
                     ax=ax
                 )
-                cbar.set_label(feature_title, fontsize=10)
+                cbar.set_label(feature_title, fontsize=20)
 
     plt.tight_layout(rect=[0, 0, 0.95, 1])  # Adjust layout to fit feature titles on the right
     plt.show()
