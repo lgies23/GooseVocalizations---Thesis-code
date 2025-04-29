@@ -2,5 +2,8 @@
 *.wav
 *.csv
 *.pkl
+*.pth
 
 !results_resampled_50_new.csv
+!latent_representations_CVAE_adam.csv
+!convolutional_vae_weights_adam_3.pth
