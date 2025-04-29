@@ -1,2 +1,6 @@
 *.png
 *.wav
+*.csv
+*.pkl
+
+!results_resampled_50_new.csv
