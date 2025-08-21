@@ -52,12 +52,12 @@ def silhouette_analysis_kmeans(data, embeddings=None, range_n_clusters=np.arange
         cluster_labels = clusterer.fit_predict(data)
         silhouette_avg = silhouette_score(data, cluster_labels)
 
-        # print(
-        #     "For n_clusters =",
-        #     n_clusters,
-        #     "The silhouette_score is:",
-        #     silhouette_avg,
-        # )
+        print(
+            "For n_clusters =",
+            n_clusters,
+            "The silhouette_score is:",
+            silhouette_avg,
+        )
 
         if silhouette_avg >= max_score:
             max_score, n, labels, centers = silhouette_avg, n_clusters, cluster_labels, clusterer.cluster_centers_
@@ -115,10 +115,10 @@ def silhouette_analysis_hdbscan(data, embeddings=None, min_sample_numbers=[1, 2,
         if n_clusters > 1:
             sil_score = silhouette_score(data, cluster_labels)
 
-            # print(
-            #     f'For min_cluster_size={min_size}, min_samples={min_samples}, n_clusters={n_clusters}: \
-            #     average silhouette_score={sil_score}'
-            # )
+            print(
+                f'For min_cluster_size={min_size}, min_samples={min_samples}, n_clusters={n_clusters}: \
+                average silhouette_score={sil_score}'
+            )
 
             # no centers because clusters may not be convex
             if sil_score > max_score:

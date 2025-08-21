@@ -176,13 +176,13 @@ def scatter_spec(
     fig = plt.figure(figsize=figsize)
     gs = gridspec.GridSpec(column_size, column_size)
 
+    # Determine plotting range
     if x_range is None and y_range is None:
-        xmin, xmax = np.sort(np.vstack(z)[:, 0])[
-            np.array([int(len(z) * 0.01), int(len(z) * 0.99)])
-        ]
-        ymin, ymax = np.sort(np.vstack(z)[:, 1])[
-            np.array([int(len(z) * 0.01), int(len(z) * 0.99)])
-        ]
+        z_arr = np.vstack(z)
+        x_sorted = np.sort(z_arr[:, 0])
+        y_sorted = np.sort(z_arr[:, 1])
+        xmin, xmax = x_sorted[[int(len(z_arr) * 0.01), int(len(z_arr) * 0.99)]]
+        ymin, ymax = y_sorted[[int(len(z_arr) * 0.01), int(len(z_arr) * 0.99)]]
         xmin -= (xmax - xmin) * range_pad
         xmax += (xmax - xmin) * range_pad
         ymin -= (ymax - ymin) * range_pad
@@ -194,160 +194,142 @@ def scatter_spec(
     x_block = (xmax - xmin) / column_size
     y_block = (ymax - ymin) / column_size
 
-    # ignore segments outside of range
+    # Filter to points within range
     z = np.array(z)
-    mask = np.array(
-        [(z[:, 0] > xmin) & (z[:, 1] > ymin) & (z[:, 0] < xmax) & (z[:, 1] < ymax)]
-    )[0]
+    mask = (z[:, 0] > xmin) & (z[:, 1] > ymin) & (z[:, 0] < xmax) & (z[:, 1] < ymax)
 
     if "labels" in scatter_kwargs:
         scatter_kwargs["labels"] = np.array(scatter_kwargs["labels"])[mask]
     specs = np.array(specs)[mask]
     z = z[mask]
 
-    # prepare the main axis
+    # Respect n_subset only when positive
+    if n_subset is not None and n_subset > 0:
+        z = z[:n_subset]
+        specs = specs[:n_subset]
+        if "labels" in scatter_kwargs:
+            scatter_kwargs["labels"] = scatter_kwargs["labels"][:n_subset]
+
+    # Prepare the main axis
     main_ax = fig.add_subplot(gs[1 : column_size - 1, 1 : column_size - 1])
-    # main_ax.scatter(z[:, 0], z[:, 1], **scatter_kwargs)
-    if show_scatter:
+    if show_scatter and len(z) > 0:
         scatter_projections(projection=z, ax=main_ax, fig=fig, **scatter_kwargs)
 
-    # loop through example columns
+    # Build the ring of small axes
     axs = {}
     for column in range(n_columns):
-        # get example column location
+        # decide row/col on the ring
         if column < column_size:
             row = 0
             col = column
-
-        elif (column >= column_size) & (column < (column_size * 2) - 1):
+        elif (column >= column_size) and (column < (column_size * 2) - 1):
             row = column - column_size + 1
             col = column_size - 1
-
-        elif (column >= ((column_size * 2) - 1)) & (column < (column_size * 3 - 2)):
+        elif (column >= ((column_size * 2) - 1)) and (column < (column_size * 3 - 2)):
             row = column_size - 1
             col = column_size - 3 - (column - column_size * 2)
-
-        elif column >= column_size * 3 - 3:
+        else:
             row = n_columns - column
             col = 0
 
         axs[column] = {"ax": fig.add_subplot(gs[row, col]), "col": col, "row": row}
-        # label subplot
-        """axs[column]["ax"].text(
-            x=0.5,
-            y=0.5,
-            s=column,
-            horizontalalignment="center",
-            verticalalignment="center",
-            transform=axs[column]["ax"].transAxes,
-        )"""
 
-        # sample a point in z based upon the row and column
+        # geometric center for this small axis (in data coords)
         xpos = xmin + x_block * col + x_block / 2
         ypos = ymax - y_block * row - y_block / 2
-        # main_ax.text(x=xpos, y=ypos, s=column, color=pal[column])
-
         axs[column]["xpos"] = xpos
         axs[column]["ypos"] = ypos
 
     main_ax.set_xlim([xmin, xmax])
     main_ax.set_ylim([ymin, ymax])
 
-    # create a voronoi diagram over the x and y pos points
-    points = [[axs[i]["xpos"], axs[i]["ypos"]] for i in axs.keys()]
+    if len(z) == 0:
+        gs.update(wspace=0, hspace=0)
+        return fig  # nothing to connect
 
+    # Voronoi over the ring cell centers, then assign each z-point to nearest center
+    points = np.array([[axs[i]["xpos"], axs[i]["ypos"]] for i in axs.keys()])
     voronoi_kdtree = cKDTree(points)
-    vor = Voronoi(points)
+    # index of closest cell center for each z point
+    _, point_regions = voronoi_kdtree.query(z)
 
-    # plot voronoi
-    # voronoi_plot_2d(vor, ax = main_ax);
-
-    # find where each point lies in the voronoi diagram
-    z = z[:n_subset]
-    point_dist, point_regions = voronoi_kdtree.query(list(z))
-
+    # Track which z points have been used so we don't reuse the same one
+    used = np.zeros(len(z), dtype=bool)
     lines_list = []
-    # loop through regions and select a point
+
+    # Loop through cells on the ring and pick a representative z point
     for key in axs.keys():
-        # sample a point in (or near) voronoi region
-        nearest_points = np.argsort(np.abs(point_regions - key))
-        possible_points = np.where(point_regions == point_regions[nearest_points][0])[0]
-        chosen_point = np.random.choice(a=possible_points, size=1)[0]
-        point_regions[chosen_point] = 1e4
-        # plot point
-        if enlarge_points > 0:
-            if color_points:
-                color = pal[key]
-            else:
-                color = "k"
-            main_ax.scatter(
-                [z[chosen_point, 0]],
-                [z[chosen_point, 1]],
-                color=color,
-                s=enlarge_points,
-            )
-        # draw spec
-        axs[key]["ax"].matshow(
+        ax_small = axs[key]["ax"]
+
+        # pick a z point assigned to this region that hasn't been used
+        in_region = np.where((point_regions == key) & (~used))[0]
+
+        if in_region.size:
+            chosen_point = np.random.choice(in_region)
+        else:
+            # fallback: choose nearest unused to the cell center
+            center = np.array([axs[key]["xpos"], axs[key]["ypos"]])
+            avail = np.where(~used)[0]
+            dists = np.linalg.norm(z[avail] - center, axis=1)
+            chosen_point = avail[np.argmin(dists)]
+
+        used[chosen_point] = True
+
+        # draw the spectrogram in the small axis
+        ax_small.matshow(
             specs[chosen_point],
             origin=img_origin,
             interpolation="none",
             aspect="auto",
             **matshow_kwargs,
         )
+        ax_small.set_xticks([])
+        ax_small.set_yticks([])
 
-        axs[key]["ax"].set_xticks([])
-        axs[key]["ax"].set_yticks([])
+        # colored borders if requested
         if color_points:
-            plt.setp(axs[key]["ax"].spines.values(), color=pal[key])
+            plt.setp(ax_small.spines.values(), color=pal[key])
+        for spine in ax_small.spines.values():
+            spine.set_linewidth(border_line_width)
 
-        for i in axs[key]["ax"].spines.values():
-            i.set_linewidth(border_line_width)
-
-        # draw a line between point and image
-        if draw_lines:
-            mytrans = (
-                axs[key]["ax"].transAxes + axs[key]["ax"].figure.transFigure.inverted()
+        # optionally enlarge and color the chosen main point
+        if enlarge_points > 0:
+            dot_color = pal[key] if color_points else "k"
+            main_ax.scatter(
+                [z[chosen_point, 0]],
+                [z[chosen_point, 1]],
+                color=dot_color,
+                s=enlarge_points,
+                zorder=3,
             )
 
+        # draw dashed connection using robust transforms
+        if draw_lines:
+            # pick an anchor on the edge of the small subplot (in Axes coords)
             line_end_pos = [0.5, 0.5]
-
             if axs[key]["row"] == 0:
                 line_end_pos[1] = 0
             if axs[key]["row"] == column_size - 1:
                 line_end_pos[1] = 1
-
             if axs[key]["col"] == 0:
                 line_end_pos[0] = 1
             if axs[key]["col"] == column_size - 1:
                 line_end_pos[0] = 0
 
-            infig_position = mytrans.transform(line_end_pos)
-
-            xpos, ypos = main_ax.transLimits.transform(
-                (z[chosen_point, 0], z[chosen_point, 1])
+            con = ConnectionPatch(
+                xyA=(z[chosen_point, 0], z[chosen_point, 1]),
+                coordsA=main_ax.transData,          # data coords on main axis
+                xyB=tuple(line_end_pos),
+                coordsB=ax_small.transAxes,         # axes coords on small subplot
+                axesA=main_ax,
+                axesB=ax_small,
+                **line_kwargs,
             )
-
-            mytrans2 = main_ax.transAxes + main_ax.figure.transFigure.inverted()
-            infig_position_start = mytrans2.transform([xpos, ypos])
-
-            color = pal[key] if color_points else "k"
-            lines_list.append(
-                Line2D(
-                    [infig_position_start[0], infig_position[0]],
-                    [infig_position_start[1], infig_position[1]],
-                    color=color,
-                    transform=fig.transFigure,
-                    **line_kwargs,
-                )
-            )
-    if draw_lines:
-        for l in lines_list:
-            fig.lines.append(l)
+            fig.add_artist(con)
+            lines_list.append(con)
 
     gs.update(wspace=0, hspace=0)
-    #gs.update(wspace=0.5, hspace=0.5)
-
-    fig = plt.gcf()
+    return fig
 
 
 def plot_embeddings_with_colorcoded_label(df, embeddings, label_column, plot_title, legend_title=None, show_legend=True):
