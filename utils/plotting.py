@@ -8,7 +8,7 @@ from scipy.spatial import cKDTree
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 import seaborn as sns
 import numpy as np
-from matplotlib.patches import Patch
+from matplotlib.patches import Patch, ConnectionPatch
 from sklearn.metrics import silhouette_samples
 
 from .helpers import _min_max_scale
