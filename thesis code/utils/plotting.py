@@ -26,6 +26,7 @@ DOT_SIZE = 10
 ALPHA = .6
 RANDOM_SEED = 42
 
+
 def scatter_projections(
     syllables=None,
     projection=None,
@@ -49,6 +50,7 @@ def scatter_projections(
     rasterized=True,
     equalize_axes=True,
     print_lab_dict=False,  # prints color scheme
+    lab_dict=CALL_TYPE_COLORS,
 ):
     """ 
     creates a scatterplot of syllables using some projection
@@ -60,20 +62,25 @@ def scatter_projections(
     # color labels
     if labels is not None:
         if categorical_labels:
-            if (color_palette == "tab20") & (len(np.unique(labels)) < 20):
-                pal = sns.color_palette(color_palette, n_colors=20)
-                pal = np.array(pal)[
-                    np.linspace(0, 19, len(np.unique(labels))).astype("int")
-                ]
-            else:
-                pal = sns.color_palette(color_palette, n_colors=len(np.unique(labels)))
-            lab_dict = {lab: pal[i] for i, lab in enumerate(np.unique(labels))}
-            if grey_unlabelled:
-                if -1 in lab_dict.keys():
-                    lab_dict[-1] = [0.95, 0.95, 0.95, 1.0]
-                if print_lab_dict:
-                    print(lab_dict)
+            if lab_dict is None:
+                if (color_palette == "tab10") & (len(np.unique(labels)) < 10):
+                    pal = sns.color_palette(color_palette, n_colors=10)
+                    pal = np.array(pal)[
+                        np.linspace(0, 9, len(np.unique(labels))).astype("int")
+                    ]
+                else:
+                    pal = sns.color_palette(color_palette, n_colors=len(np.unique(labels)))
+                lab_dict = {lab: pal[i] for i, lab in enumerate(np.unique(labels))}
+
+            if grey_unlabelled and -1 in lab_dict:
+                lab_dict[-1] = [0.95, 0.95, 0.95, 1.0]
+
+            if print_lab_dict:
+                print(lab_dict)
+
             colors = np.array([lab_dict[i] for i in labels])
+        else:
+            colors = labels  # continuous case
     else:
         colors = color
 
@@ -173,8 +180,41 @@ def scatter_spec(
     n_columns = column_size * 4 - 4
     pal = sns.color_palette(pal_color, n_colors=n_columns)
 
-    fig = plt.figure(figsize=figsize)
-    gs = gridspec.GridSpec(column_size, column_size)
+    if ax is None:
+        fig = plt.figure(figsize=figsize)
+        gs = gridspec.GridSpec(column_size, column_size)
+        main_ax = fig.add_subplot(gs[1 : column_size - 1, 1 : column_size - 1])
+
+    else:
+        fig = ax.figure
+
+       # get subplot bbox in figure coordinates
+        bbox = ax.get_position()
+        width = bbox.width
+        height = bbox.height
+        side = min(width, height)
+
+        # center a square in subplot
+        cx = bbox.x0 + width/2
+        cy = bbox.y0 + height/2
+        square_bbox = [cx - side/2, cy - side/2, side, side]
+
+        # main_ax remains the user-passed ax
+        main_ax.set_position(square_bbox)
+
+        # now build the ring of small axes manually in figure coordinates
+        n_thumbs = len(specs)  # or column_size*4-4
+        for i, spec in enumerate(specs):
+            # compute row/col in ring as before
+            row, col = ...  # same as original logic
+            x0 = square_bbox[0] + (col / column_size) * side
+            y0 = square_bbox[1] + (row / column_size) * side
+            ax_small = fig.add_axes([x0, y0, side/column_size, side/column_size])
+            ax_small.matshow(spec, origin="lower", cmap=plt.cm.Greys)
+            ax_small.set_xticks([])
+            ax_small.set_yticks([])
+
+    fig.patch.set_alpha(0)
 
     # Determine plotting range
     if x_range is None and y_range is None:
@@ -210,8 +250,8 @@ def scatter_spec(
         if "labels" in scatter_kwargs:
             scatter_kwargs["labels"] = scatter_kwargs["labels"][:n_subset]
 
-    # Prepare the main axis
-    main_ax = fig.add_subplot(gs[1 : column_size - 1, 1 : column_size - 1])
+    # # Prepare the main axis
+    # main_ax = fig.add_subplot(gs[1 : column_size - 1, 1 : column_size - 1])
     if show_scatter and len(z) > 0:
         scatter_projections(projection=z, ax=main_ax, fig=fig, **scatter_kwargs)
 
@@ -242,6 +282,7 @@ def scatter_spec(
 
     main_ax.set_xlim([xmin, xmax])
     main_ax.set_ylim([ymin, ymax])
+    main_ax.patch.set_alpha(0)
 
     if len(z) == 0:
         gs.update(wspace=0, hspace=0)
@@ -285,6 +326,7 @@ def scatter_spec(
         )
         ax_small.set_xticks([])
         ax_small.set_yticks([])
+        ax_small.patch.set_alpha(0)
 
         # colored borders if requested
         if color_points:
@@ -328,7 +370,10 @@ def scatter_spec(
             fig.add_artist(con)
             lines_list.append(con)
 
-    gs.update(wspace=0, hspace=0)
+    if isinstance(gs, gridspec.GridSpec):
+        gs.update(wspace=0, hspace=0)
+    else:
+        plt.subplots_adjust(wspace=0, hspace=0)
     return fig
 
 
