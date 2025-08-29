@@ -7,3 +7,6 @@
 !results_resampled_50_new.csv
 !latent_representations_CVAE_adam.csv
 !convolutional_vae_weights_adam_3.pth
+!selections_tracks.csv
+!latent_representations_CVAE_adam_2025_08_29.pkl
+!convolutional_vae_weights_adam.pth
