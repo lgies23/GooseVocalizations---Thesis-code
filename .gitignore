@@ -10,7 +10,5 @@
 !selections_tracks.csv
 !latent_representations_CVAE_adam_2025_08_29.pkl
 !convolutional_vae_weights_adam.pth
-!results_20250831_003221.pkl
-!results_20250930_230811.pkl
-!results_20251001_123519.pkl
-!embeddings_for_visualization_20251001_123519.pkl
+!results_20251002_160646.pkl
+!embeddings_for_visualization_20251002_160646.pkl
